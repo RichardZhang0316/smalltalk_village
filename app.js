@@ -87,6 +87,240 @@ function speak(text, rate = 0.85) {
   speech.synth.speak(utt);
 }
 
+// ─── AR Placement: Placeable Objects Catalogue ───────────────────────────────
+const PLACEABLE_OBJECTS = [
+  { key: 'cup',      emoji: '☕', label: 'Cup' },
+  { key: 'chair',    emoji: '🪑', label: 'Chair' },
+  { key: 'desk',     emoji: '🗂️', label: 'Desk' },
+  { key: 'laptop',   emoji: '💻', label: 'Laptop' },
+  { key: 'book',     emoji: '📖', label: 'Book' },
+  { key: 'pen',      emoji: '✏️', label: 'Pen' },
+  { key: 'phone',    emoji: '📱', label: 'Phone' },
+  { key: 'bag',      emoji: '👜', label: 'Bag' },
+  { key: 'bottle',   emoji: '🍶', label: 'Bottle' },
+  { key: 'keyboard', emoji: '⌨️', label: 'Keyboard' },
+  { key: 'backpack', emoji: '🎒', label: 'Backpack' },
+  { key: 'tv',       emoji: '📺', label: 'TV' },
+  { key: 'clock',    emoji: '⏰', label: 'Clock' },
+  { key: 'scissors', emoji: '✂️', label: 'Scissors' },
+  { key: 'mouse',    emoji: '🖱️', label: 'Mouse' },
+];
+
+// ─── Three.js AR Placement Scene ─────────────────────────────────────────────
+const arThree = {
+  renderer: null,
+  scene: null,
+  camera: null,
+  clock: null,
+  placed: [],        // array of placed object data
+  ghostSprite: null, // preview sprite following finger before placement
+  selectedItem: null,
+};
+
+// Placement interaction state
+const placementState = {
+  active: false,     // currently in "tap to place" mode
+  ghostX: 0,
+  ghostY: 0,
+};
+
+function initArThree() {
+  const threeCanvas = document.getElementById('ar-three-canvas');
+  if (!window.THREE || !threeCanvas) return;
+
+  arThree.renderer = new THREE.WebGLRenderer({ canvas: threeCanvas, alpha: true, antialias: true });
+  arThree.renderer.setPixelRatio(window.devicePixelRatio);
+  arThree.renderer.setSize(window.innerWidth, window.innerHeight);
+
+  arThree.scene = new THREE.Scene();
+  arThree.clock = new THREE.Clock();
+
+  const w = window.innerWidth, h = window.innerHeight;
+  arThree.camera = new THREE.OrthographicCamera(-w / 2, w / 2, h / 2, -h / 2, 0.1, 100);
+  arThree.camera.position.z = 10;
+
+  window.addEventListener('resize', () => {
+    const w2 = window.innerWidth, h2 = window.innerHeight;
+    arThree.renderer.setSize(w2, h2);
+    arThree.camera.left   = -w2 / 2;
+    arThree.camera.right  =  w2 / 2;
+    arThree.camera.top    =  h2 / 2;
+    arThree.camera.bottom = -h2 / 2;
+    arThree.camera.updateProjectionMatrix();
+  });
+}
+
+/**
+ * Build a canvas texture showing emoji + word + phonetic in a card.
+ * @param {string} emoji
+ * @param {string} label
+ * @param {string} phonetic
+ * @param {string} color  hex color
+ * @param {number} alpha  0–1, used for ghost preview
+ */
+function makeObjectCardTexture(emoji, label, phonetic, color, alpha = 1) {
+  const W = 220, H = 220;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const c2 = c.getContext('2d');
+
+  // Dark card background
+  c2.globalAlpha = alpha * 0.88;
+  c2.fillStyle = '#0f0f1a';
+  roundedRect(c2, 12, 12, W - 24, H - 24, 22);
+  c2.fill();
+
+  // Glowing border
+  c2.globalAlpha = alpha;
+  c2.strokeStyle = color;
+  c2.lineWidth = 3;
+  c2.shadowColor = color;
+  c2.shadowBlur = 14;
+  roundedRect(c2, 12, 12, W - 24, H - 24, 22);
+  c2.stroke();
+  c2.shadowBlur = 0;
+
+  // Emoji
+  c2.font = '72px serif';
+  c2.textAlign = 'center';
+  c2.textBaseline = 'alphabetic';
+  c2.fillText(emoji, W / 2, 108);
+
+  // Word
+  c2.font = 'bold 26px Arial, sans-serif';
+  c2.fillStyle = color;
+  c2.fillText(label.toUpperCase(), W / 2, 148);
+
+  // Phonetic
+  c2.font = 'italic 17px Arial, sans-serif';
+  c2.fillStyle = 'rgba(255,255,255,0.55)';
+  c2.fillText(phonetic, W / 2, 172);
+
+  return new THREE.CanvasTexture(c);
+}
+
+function roundedRect(ctx2d, x, y, w, h, r) {
+  ctx2d.beginPath();
+  ctx2d.moveTo(x + r, y);
+  ctx2d.lineTo(x + w - r, y);
+  ctx2d.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx2d.lineTo(x + w, y + h - r);
+  ctx2d.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx2d.lineTo(x + r, y + h);
+  ctx2d.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx2d.lineTo(x, y + r);
+  ctx2d.quadraticCurveTo(x, y, x + r, y);
+  ctx2d.closePath();
+}
+
+/** Convert screen (x,y) pixels → Three.js ortho world coords */
+function screenToWorld(sx, sy) {
+  return {
+    x:  sx - window.innerWidth  / 2,
+    y: -(sy - window.innerHeight / 2),
+  };
+}
+
+/** Enter "tap to place" mode for the given catalogue item */
+function enterPlacementMode(item) {
+  placementState.active = true;
+  arThree.selectedItem  = item;
+
+  // Create ghost sprite (semi-transparent preview)
+  if (arThree.ghostSprite) {
+    arThree.scene.remove(arThree.ghostSprite);
+  }
+  const vocab = getVocab(item.key);
+  const tex   = makeObjectCardTexture(item.emoji, item.label, vocab.phonetic, vocab.color, 0.5);
+  const mat   = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, opacity: 0.7 });
+  arThree.ghostSprite = new THREE.Sprite(mat);
+  arThree.ghostSprite.scale.set(140, 140, 1);
+  arThree.ghostSprite.position.set(0, 0, 1);
+  arThree.scene.add(arThree.ghostSprite);
+
+  // Update hint
+  const hint = document.getElementById('placement-hint');
+  if (hint) {
+    hint.querySelector('.hint-word').textContent = item.label;
+    hint.classList.remove('hidden');
+  }
+}
+
+/** Exit placement mode without placing */
+function exitPlacementMode() {
+  placementState.active = false;
+  arThree.selectedItem  = null;
+  if (arThree.ghostSprite) {
+    arThree.scene.remove(arThree.ghostSprite);
+    arThree.ghostSprite.material.map.dispose();
+    arThree.ghostSprite.material.dispose();
+    arThree.ghostSprite = null;
+  }
+  const hint = document.getElementById('placement-hint');
+  if (hint) hint.classList.add('hidden');
+}
+
+/** Place the selected object at screen position (sx, sy) */
+function placeObjectAt(sx, sy) {
+  if (!placementState.active || !arThree.selectedItem) return;
+
+  const item  = arThree.selectedItem;
+  const vocab = getVocab(item.key);
+  const { x, y } = screenToWorld(sx, sy);
+
+  const tex    = makeObjectCardTexture(item.emoji, item.label, vocab.phonetic, vocab.color, 1);
+  const mat    = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(140, 140, 1);
+  sprite.position.set(x, y, 0);
+  arThree.scene.add(sprite);
+
+  const placedObj = { sprite, x, y, phase: Math.random() * Math.PI * 2, item, vocab };
+  arThree.placed.push(placedObj);
+
+  // Auto-speak word when placed
+  speak(item.label, 0.8);
+
+  // Show the "tap to pronounce / clear" toolbar
+  const toolbar = document.getElementById('placed-toolbar');
+  if (toolbar) toolbar.classList.remove('hidden');
+
+  exitPlacementMode();
+}
+
+/** Remove all placed objects */
+function clearAllPlaced() {
+  arThree.placed.forEach(obj => {
+    arThree.scene.remove(obj.sprite);
+    obj.sprite.material.map.dispose();
+    obj.sprite.material.dispose();
+  });
+  arThree.placed = [];
+  const toolbar = document.getElementById('placed-toolbar');
+  if (toolbar) toolbar.classList.add('hidden');
+}
+
+/** Animate and render placed objects + ghost */
+function tickArThree() {
+  if (!arThree.renderer) return;
+  const t = arThree.clock ? arThree.clock.getElapsedTime() : 0;
+
+  // Animate ghost following touch/mouse
+  if (arThree.ghostSprite && placementState.active) {
+    const { x, y } = screenToWorld(placementState.ghostX, placementState.ghostY);
+    arThree.ghostSprite.position.x += (x - arThree.ghostSprite.position.x) * 0.25;
+    arThree.ghostSprite.position.y += (y - arThree.ghostSprite.position.y) * 0.25;
+    arThree.ghostSprite.position.y += Math.sin(t * 3) * 3;
+  }
+
+  // Animate placed objects (gentle float)
+  arThree.placed.forEach(obj => {
+    obj.sprite.position.y = obj.y + Math.sin(t * 1.6 + obj.phase) * 5;
+  });
+
+  arThree.renderer.render(arThree.scene, arThree.camera);
+}
+
 // ─── State ───────────────────────────────────────────────────────────────────
 const state = {
   model: null,
@@ -146,6 +380,7 @@ async function init() {
   await startCamera();
   setLoadingProgress(90, 'Initialising AR…');
   setupCanvas();
+  initArThree();
   setupEventListeners();
   setLoadingProgress(100, 'Ready!');
 
@@ -235,6 +470,7 @@ async function loop() {
   if (!state.isRunning) return;
 
   updateFps();
+  tickArThree(); // animate 3D emoji sprites every frame
 
   if (state.continuousMode) {
     await runInference();
@@ -283,29 +519,66 @@ async function inferCoco() {
     return;
   }
 
-  // Draw bounding boxes
+  const scaleX = canvas.width  / video.videoWidth;
+  const scaleY = canvas.height / video.videoHeight;
+
   clearCanvas();
   predictions.forEach(pred => {
     const [x, y, w, h] = pred.bbox;
     const vocab = getVocab(pred.class);
-    const scaleX = canvas.width  / video.videoWidth;
-    const scaleY = canvas.height / video.videoHeight;
-
-    ctx.strokeStyle = vocab.color;
-    ctx.lineWidth = 3;
-    ctx.strokeRect(x * scaleX, y * scaleY, w * scaleX, h * scaleY);
-
-    // Mini label above box
-    ctx.fillStyle = vocab.color + 'CC';
-    ctx.fillRect(x * scaleX, (y * scaleY) - 28, Math.min(w * scaleX, 150), 28);
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 14px Arial';
-    ctx.fillText(pred.class.toUpperCase(), (x * scaleX) + 6, (y * scaleY) - 8);
+    drawArBox(x * scaleX, y * scaleY, w * scaleX, h * scaleY, vocab.color);
   });
 
   // Show best prediction in label card
   const best = predictions[0];
   displayLabel(best.class, best.score);
+}
+
+/** Draw a glowing AR-style bounding box with animated corner brackets */
+function drawArBox(x, y, w, h, color) {
+  const cornerLen = Math.min(w, h) * 0.2;
+  const now = Date.now();
+
+  ctx.save();
+
+  // Outer glow
+  ctx.shadowColor   = color;
+  ctx.shadowBlur    = 18;
+  ctx.strokeStyle   = color;
+  ctx.lineWidth     = 2;
+
+  // Animated dashed border
+  const dashOffset = (now / 40) % 20;
+  ctx.setLineDash([8, 6]);
+  ctx.lineDashOffset = -dashOffset;
+  ctx.strokeRect(x, y, w, h);
+  ctx.setLineDash([]);
+
+  // Solid corner brackets (no shadow blur for crispness)
+  ctx.shadowBlur  = 0;
+  ctx.lineWidth   = 3.5;
+  ctx.strokeStyle = color;
+
+  const corners = [
+    [x,     y,     cornerLen, 0,        0,        cornerLen],  // TL
+    [x + w, y,     -cornerLen, 0,       0,        cornerLen],  // TR
+    [x,     y + h, cornerLen, 0,        0,        -cornerLen], // BL
+    [x + w, y + h, -cornerLen, 0,       0,        -cornerLen], // BR
+  ];
+  corners.forEach(([cx, cy, dx1, dy1, dx2, dy2]) => {
+    ctx.beginPath();
+    ctx.moveTo(cx + dx1, cy + dy1);
+    ctx.lineTo(cx, cy);
+    ctx.lineTo(cx + dx2, cy + dy2);
+    ctx.stroke();
+  });
+
+  // Pulse fill (subtle)
+  const alpha = (Math.sin(now / 400) * 0.5 + 0.5) * 0.08;
+  ctx.fillStyle = color + Math.round(alpha * 255).toString(16).padStart(2, '0');
+  ctx.fillRect(x, y, w, h);
+
+  ctx.restore();
 }
 
 function clearCanvas() {
@@ -407,6 +680,45 @@ function showNoModelScreen() {
   noModelScreen.classList.remove('hidden');
 }
 
+// ─── Object Picker ────────────────────────────────────────────────────────────
+function buildObjectPicker() {
+  const grid = document.getElementById('picker-grid');
+  if (grid.childElementCount > 0) return; // already built
+
+  PLACEABLE_OBJECTS.forEach(item => {
+    const btn = document.createElement('button');
+    btn.className = 'picker-item';
+    const vocab = getVocab(item.key);
+    btn.innerHTML = `
+      <span class="picker-emoji">${item.emoji}</span>
+      <span class="picker-word" style="color:${vocab.color}">${item.label}</span>
+      <span class="picker-phonetic">${vocab.phonetic}</span>
+    `;
+    btn.addEventListener('click', () => {
+      $('object-picker-panel').classList.add('hidden');
+      enterPlacementMode(item);
+    });
+    grid.appendChild(btn);
+  });
+}
+
+/** Tap on a placed object → speak the word */
+function handlePlacedObjectTap(sx, sy) {
+  const { x, y } = screenToWorld(sx, sy);
+  const THRESHOLD = 80; // pixels in ortho space
+  for (const obj of arThree.placed) {
+    const dx = obj.sprite.position.x - x;
+    const dy = obj.sprite.position.y - y;
+    if (Math.sqrt(dx * dx + dy * dy) < THRESHOLD) {
+      speak(obj.item.label, 0.8);
+      // Brief pulse effect
+      obj.sprite.scale.set(165, 165, 1);
+      setTimeout(() => obj.sprite.scale.set(140, 140, 1), 300);
+      break;
+    }
+  }
+}
+
 // ─── Event Listeners ─────────────────────────────────────────────────────────
 function setupEventListeners() {
   // Speak the detected word
@@ -465,6 +777,65 @@ function setupEventListeners() {
     if (btn) speak(btn.dataset.word);
   });
 
+  // ── AR Placement ──────────────────────────────────────────────────────────
+
+  // Open object picker panel
+  $('btn-place-ar').addEventListener('click', () => {
+    buildObjectPicker();
+    $('object-picker-panel').classList.remove('hidden');
+  });
+
+  // Close picker without selecting
+  $('btn-close-picker').addEventListener('click', () => {
+    $('object-picker-panel').classList.add('hidden');
+  });
+
+  // Cancel placement mode
+  $('btn-cancel-place').addEventListener('click', () => {
+    exitPlacementMode();
+  });
+
+  // Clear all placed objects
+  $('btn-clear-placed').addEventListener('click', () => {
+    clearAllPlaced();
+  });
+
+  // Track ghost position (touch)
+  const threeCanvas = document.getElementById('ar-three-canvas');
+  threeCanvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (!placementState.active) return;
+    placementState.ghostX = e.touches[0].clientX;
+    placementState.ghostY = e.touches[0].clientY;
+  }, { passive: false });
+
+  // Track ghost position (mouse, for desktop testing)
+  threeCanvas.addEventListener('mousemove', e => {
+    if (!placementState.active) return;
+    placementState.ghostX = e.clientX;
+    placementState.ghostY = e.clientY;
+  });
+
+  // Tap / click to place object OR speak a placed object
+  threeCanvas.addEventListener('click', e => {
+    if (placementState.active) {
+      placeObjectAt(e.clientX, e.clientY);
+    } else {
+      // Check if tapped near a placed object
+      handlePlacedObjectTap(e.clientX, e.clientY);
+    }
+  });
+
+  threeCanvas.addEventListener('touchend', e => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    if (placementState.active) {
+      placeObjectAt(t.clientX, t.clientY);
+    } else {
+      handlePlacedObjectTap(t.clientX, t.clientY);
+    }
+  }, { passive: false });
+
   // Demo mode (COCO)
   const demoBtn = $('btn-demo-mode');
   if (demoBtn) {
@@ -477,6 +848,7 @@ function setupEventListeners() {
       await startCamera();
       setLoadingProgress(90, 'Initialising AR…');
       setupCanvas();
+      initArThree();
       setupEventListeners();
       setLoadingProgress(100, 'Ready (Demo Mode)!');
       setTimeout(() => {

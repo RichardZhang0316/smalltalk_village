@@ -12,6 +12,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
   <!-- Teachable Machine Image Library -->
   <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.5/dist/teachablemachine-image.min.js"></script>
+  <!-- Three.js for 3D AR overlays -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.min.js"></script>
 </head>
 <body>
 
@@ -34,8 +36,10 @@
     <!-- Camera Feed -->
     <video id="webcam" autoplay playsinline muted></video>
 
-    <!-- AR Canvas Overlay -->
+    <!-- AR Canvas Overlay (bounding boxes) -->
     <canvas id="ar-canvas"></canvas>
+    <!-- Three.js WebGL Canvas (3D floating objects) -->
+    <canvas id="ar-three-canvas"></canvas>
 
     <!-- Detected Label Card -->
     <div id="label-card" class="hidden">
@@ -80,6 +84,32 @@
         <span class="btn-icon">🔈</span>
         <span>Auto</span>
       </button>
+      <button id="btn-place-ar" class="btn-secondary">
+        <span class="btn-icon">✦</span>
+        <span>Place AR</span>
+      </button>
+    </div>
+
+    <!-- Placement mode hint bar -->
+    <div id="placement-hint" class="hidden">
+      <span>Tap anywhere to place</span>
+      <strong class="hint-word"></strong>
+      <button id="btn-cancel-place">✕ Cancel</button>
+    </div>
+
+    <!-- Placed objects toolbar (shown when ≥1 placed) -->
+    <div id="placed-toolbar" class="hidden">
+      <span>Tap objects to hear pronunciation</span>
+      <button id="btn-clear-placed">🗑 Clear All</button>
+    </div>
+
+    <!-- Object Picker Panel -->
+    <div id="object-picker-panel" class="hidden">
+      <div class="picker-header">
+        <h2>Choose an AR Object</h2>
+        <button id="btn-close-picker">✕</button>
+      </div>
+      <div id="picker-grid"></div>
     </div>
 
     <!-- Learned Words Panel -->
