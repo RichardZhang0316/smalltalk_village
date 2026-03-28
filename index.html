@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>SmallTalk Village — AR Vocabulary</title>
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- TensorFlow.js -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+  <!-- Teachable Machine Image Library -->
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.5/dist/teachablemachine-image.min.js"></script>
+</head>
+<body>
+
+  <!-- Loading Screen -->
+  <div id="loading-screen">
+    <div class="loading-content">
+      <div class="village-icon">🏘️</div>
+      <h1>SmallTalk Village</h1>
+      <p>AR Vocabulary Explorer</p>
+      <div class="loading-bar">
+        <div class="loading-fill" id="loading-fill"></div>
+      </div>
+      <p id="loading-text">Loading AI model...</p>
+    </div>
+  </div>
+
+  <!-- Main AR View -->
+  <div id="ar-container" class="hidden">
+
+    <!-- Camera Feed -->
+    <video id="webcam" autoplay playsinline muted></video>
+
+    <!-- AR Canvas Overlay -->
+    <canvas id="ar-canvas"></canvas>
+
+    <!-- Detected Label Card -->
+    <div id="label-card" class="hidden">
+      <div class="label-inner">
+        <div class="confidence-ring">
+          <svg viewBox="0 0 36 36" class="ring-svg">
+            <path class="ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+            <path class="ring-fill" id="ring-fill" stroke-dasharray="0, 100"
+              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+          </svg>
+          <span id="confidence-text">0%</span>
+        </div>
+        <div class="label-text-block">
+          <span id="detected-label">—</span>
+          <span id="phonetic-label"></span>
+          <span id="example-sentence"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Control Bar -->
+    <div id="control-bar">
+      <button id="btn-scan" class="btn-primary">
+        <span class="btn-icon">📷</span>
+        <span>Scan Object</span>
+      </button>
+      <button id="btn-continuous" class="btn-secondary active" data-active="true">
+        <span class="btn-icon">🔄</span>
+        <span>Live Mode</span>
+      </button>
+      <button id="btn-history" class="btn-secondary">
+        <span class="btn-icon">📚</span>
+        <span>Learned</span>
+      </button>
+    </div>
+
+    <!-- Learned Words Panel -->
+    <div id="history-panel" class="hidden">
+      <div class="panel-header">
+        <h2>Words Learned Today</h2>
+        <button id="btn-close-history">✕</button>
+      </div>
+      <div id="history-list"></div>
+    </div>
+
+    <!-- Scan Indicator -->
+    <div id="scan-indicator" class="hidden">
+      <div class="scan-frame">
+        <div class="corner tl"></div>
+        <div class="corner tr"></div>
+        <div class="corner bl"></div>
+        <div class="corner br"></div>
+        <div class="scan-line"></div>
+      </div>
+      <p class="scan-hint">Point at an object</p>
+    </div>
+
+    <!-- Top Status Bar -->
+    <div id="status-bar">
+      <span id="model-status">🟢 Model Ready</span>
+      <span id="fps-display">— fps</span>
+    </div>
+
+  </div>
+
+  <!-- Model Not Found Screen (fallback, normally auto-redirects to COCO) -->
+  <div id="no-model-screen" class="hidden">
+    <div class="setup-content">
+      <div class="setup-icon">⚠️</div>
+      <h2>Failed to Load</h2>
+      <p>Could not load any model. Please check your network connection and reload.</p>
+      <button id="btn-demo-mode" class="btn-primary" onclick="location.reload()">Reload</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
