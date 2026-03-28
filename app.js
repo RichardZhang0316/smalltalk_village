@@ -225,42 +225,45 @@ function screenToWorld(sx, sy) {
 function enterPlacementMode(item) {
   placementState.active = true;
   arThree.selectedItem  = item;
-  // Start ghost at screen center so it's visible immediately
   placementState.ghostX = window.innerWidth  / 2;
   placementState.ghostY = window.innerHeight / 2;
 
-  // Create ghost sprite (semi-transparent preview)
-  if (arThree.ghostSprite) {
-    arThree.scene.remove(arThree.ghostSprite);
-  }
-  const vocab = getVocab(item.key);
-  const tex   = makeObjectCardTexture(item.emoji, item.label, vocab.phonetic, vocab.color, 0.5);
-  const mat   = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, opacity: 0.7 });
-  arThree.ghostSprite = new THREE.Sprite(mat);
-  arThree.ghostSprite.scale.set(140, 140, 1);
-  arThree.ghostSprite.position.set(0, 0, 1);
-  arThree.scene.add(arThree.ghostSprite);
-
-  // Update hint
+  // Show placement hint bar immediately (no Three.js dependency)
   const hint = document.getElementById('placement-hint');
   if (hint) {
     hint.querySelector('.hint-word').textContent = item.label;
     hint.classList.remove('hidden');
   }
+
+  // Create/move the DOM ghost card
+  let ghost = document.getElementById('ar-ghost-card');
+  if (!ghost) {
+    ghost = document.createElement('div');
+    ghost.id = 'ar-ghost-card';
+    ghost.className = 'ar-placed-card ar-ghost';
+    document.getElementById('ar-container').appendChild(ghost);
+  }
+  const vocab = getVocab(item.key);
+  ghost.innerHTML = `
+    <span class="placed-emoji">${item.emoji}</span>
+    <span class="placed-word" style="color:${vocab.color}">${item.label.toUpperCase()}</span>
+    <span class="placed-phonetic">${vocab.phonetic}</span>
+  `;
+  ghost.style.left = `${placementState.ghostX}px`;
+  ghost.style.top  = `${placementState.ghostY}px`;
+  ghost.classList.remove('hidden');
 }
 
 /** Exit placement mode without placing */
 function exitPlacementMode() {
   placementState.active = false;
   arThree.selectedItem  = null;
-  if (arThree.ghostSprite) {
-    arThree.scene.remove(arThree.ghostSprite);
-    arThree.ghostSprite.material.map.dispose();
-    arThree.ghostSprite.material.dispose();
-    arThree.ghostSprite = null;
-  }
+
   const hint = document.getElementById('placement-hint');
   if (hint) hint.classList.add('hidden');
+
+  const ghost = document.getElementById('ar-ghost-card');
+  if (ghost) ghost.classList.add('hidden');
 }
 
 /** Place the selected object at screen position (sx, sy) */
@@ -269,59 +272,65 @@ function placeObjectAt(sx, sy) {
 
   const item  = arThree.selectedItem;
   const vocab = getVocab(item.key);
-  const { x, y } = screenToWorld(sx, sy);
 
-  const tex    = makeObjectCardTexture(item.emoji, item.label, vocab.phonetic, vocab.color, 1);
-  const mat    = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
-  const sprite = new THREE.Sprite(mat);
-  sprite.scale.set(140, 140, 1);
-  sprite.position.set(x, y, 0);
-  arThree.scene.add(sprite);
+  // Build a DOM card at the tapped position
+  const card = document.createElement('div');
+  card.className = 'ar-placed-card ar-placed-card--placed';
+  card.style.left = `${sx}px`;
+  card.style.top  = `${sy}px`;
+  card.innerHTML = `
+    <span class="placed-emoji">${item.emoji}</span>
+    <span class="placed-word" style="color:${vocab.color}">${item.label.toUpperCase()}</span>
+    <span class="placed-phonetic">${vocab.phonetic}</span>
+    <button class="placed-remove" title="Remove">✕</button>
+  `;
 
-  const placedObj = { sprite, x, y, phase: Math.random() * Math.PI * 2, item, vocab };
-  arThree.placed.push(placedObj);
+  // Tap card body → speak word
+  card.addEventListener('click', e => {
+    if (e.target.closest('.placed-remove')) {
+      card.remove();
+      arThree.placed = arThree.placed.filter(o => o.card !== card);
+      if (arThree.placed.length === 0) {
+        document.getElementById('placed-toolbar').classList.add('hidden');
+      }
+      return;
+    }
+    speak(item.label, 0.8);
+    card.classList.add('placed-pulse');
+    setTimeout(() => card.classList.remove('placed-pulse'), 400);
+  });
 
-  // Auto-speak word when placed
+  document.getElementById('ar-container').appendChild(card);
+  arThree.placed.push({ card, item });
+
   speak(item.label, 0.8);
 
-  // Show the "tap to pronounce / clear" toolbar
-  const toolbar = document.getElementById('placed-toolbar');
-  if (toolbar) toolbar.classList.remove('hidden');
-
+  document.getElementById('placed-toolbar').classList.remove('hidden');
   exitPlacementMode();
 }
 
 /** Remove all placed objects */
 function clearAllPlaced() {
-  arThree.placed.forEach(obj => {
-    arThree.scene.remove(obj.sprite);
-    obj.sprite.material.map.dispose();
-    obj.sprite.material.dispose();
-  });
+  arThree.placed.forEach(o => o.card.remove());
   arThree.placed = [];
-  const toolbar = document.getElementById('placed-toolbar');
-  if (toolbar) toolbar.classList.add('hidden');
+  document.getElementById('placed-toolbar').classList.add('hidden');
 }
 
-/** Animate and render placed objects + ghost */
+/** Animate Three.js scene (bounding-box canvas only now) */
 function tickArThree() {
-  if (!arThree.renderer) return;
-  const t = arThree.clock ? arThree.clock.getElapsedTime() : 0;
-
-  // Animate ghost following touch/mouse
-  if (arThree.ghostSprite && placementState.active) {
-    const { x, y } = screenToWorld(placementState.ghostX, placementState.ghostY);
-    arThree.ghostSprite.position.x += (x - arThree.ghostSprite.position.x) * 0.25;
-    arThree.ghostSprite.position.y += (y - arThree.ghostSprite.position.y) * 0.25;
-    arThree.ghostSprite.position.y += Math.sin(t * 3) * 3;
+  // Update DOM ghost card position
+  if (placementState.active) {
+    const ghost = document.getElementById('ar-ghost-card');
+    if (ghost && !ghost.classList.contains('hidden')) {
+      ghost.style.left = `${placementState.ghostX}px`;
+      ghost.style.top  = `${placementState.ghostY}px`;
+    }
   }
 
-  // Animate placed objects (gentle float)
-  arThree.placed.forEach(obj => {
-    obj.sprite.position.y = obj.y + Math.sin(t * 1.6 + obj.phase) * 5;
-  });
-
-  arThree.renderer.render(arThree.scene, arThree.camera);
+  // Render Three.js scene (bounding boxes drawn on ar-canvas separately)
+  if (arThree.renderer) {
+    arThree.renderer.render(arThree.scene, arThree.camera);
+  }
 }
 
 // ─── State ───────────────────────────────────────────────────────────────────
