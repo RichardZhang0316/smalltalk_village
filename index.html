@@ -14,6 +14,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.5/dist/teachablemachine-image.min.js"></script>
   <!-- Three.js for 3D AR overlays -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.min.js"></script>
+  <!-- model-viewer: 3D viewer + native AR (Quick Look on iOS, Scene Viewer on Android) -->
+  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
 </head>
 <body>
 
@@ -110,6 +112,48 @@
         <button id="btn-close-picker">✕</button>
       </div>
       <div id="picker-grid"></div>
+    </div>
+
+    <!-- 3D Model Viewer Panel -->
+    <div id="model-viewer-panel" class="hidden">
+      <div class="mv-header">
+        <div class="mv-word-info">
+          <span id="mv-word"></span>
+          <span id="mv-phonetic"></span>
+        </div>
+        <button id="btn-close-mv">✕</button>
+      </div>
+
+      <!-- model-viewer web component -->
+      <model-viewer
+        id="main-model-viewer"
+        ar
+        ar-modes="webxr scene-viewer quick-look"
+        camera-controls
+        auto-rotate
+        shadow-intensity="1"
+        exposure="1"
+        style="width:100%;flex:1;background:transparent;">
+        <!-- AR button styled inside model-viewer slot -->
+        <button slot="ar-button" id="mv-ar-btn">
+          <span>✦</span> View in AR
+        </button>
+      </model-viewer>
+
+      <div class="mv-footer">
+        <p id="mv-example"></p>
+        <div class="mv-actions">
+          <button id="mv-speak-btn" class="btn-primary">
+            <span>🔊</span> Pronounce
+          </button>
+          <button id="mv-place-btn" class="btn-secondary">
+            <span>📌</span> Place Card
+          </button>
+        </div>
+        <p id="mv-no-model-hint" class="mv-hint hidden">
+          No 3D model yet for this word. <a href="https://poly.pizza" target="_blank">Get free models</a> and add to <code>assets/models/</code>
+        </p>
+      </div>
     </div>
 
     <!-- Learned Words Panel -->

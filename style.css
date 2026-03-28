@@ -258,6 +258,118 @@ html, body {
   -webkit-box-orient: vertical;
 }
 
+/* ─── 3D Model Viewer Panel ──────────────────────────────────────────────────── */
+#model-viewer-panel {
+  position: absolute; inset: 0;
+  background: rgba(8, 8, 18, 0.97);
+  display: flex;
+  flex-direction: column;
+  z-index: 30;
+}
+
+.mv-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+
+.mv-word-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+#mv-word {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+#mv-phonetic {
+  font-size: 0.85rem;
+  color: rgba(255,255,255,0.45);
+  font-style: italic;
+}
+
+#btn-close-mv {
+  background: rgba(255,255,255,0.1);
+  border: none;
+  color: #fff;
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+/* model-viewer fills the remaining space */
+#main-model-viewer {
+  flex: 1;
+  min-height: 0;
+  --progress-bar-color: var(--primary);
+  --poster-color: transparent;
+}
+
+/* iOS AR button inside model-viewer */
+#mv-ar-btn {
+  background: linear-gradient(135deg, #6C63FF, #48CAE4);
+  color: #fff;
+  border: none;
+  border-radius: 24px;
+  padding: 10px 22px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(108,99,255,0.5);
+  margin-bottom: 16px;
+}
+#mv-ar-btn span { font-size: 1rem; }
+
+.mv-footer {
+  padding: 14px 20px 20px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#mv-example {
+  font-size: 0.82rem;
+  color: rgba(255,255,255,0.6);
+  line-height: 1.5;
+  font-style: italic;
+}
+
+.mv-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.mv-actions .btn-primary,
+.mv-actions .btn-secondary {
+  flex: 1;
+  flex-direction: row;
+  padding: 12px;
+  font-size: 0.82rem;
+}
+
+.mv-hint {
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.4);
+  text-align: center;
+  line-height: 1.5;
+}
+.mv-hint a  { color: #6C63FF; }
+.mv-hint code { color: #48CAE4; font-size: 0.7rem; }
+
 /* ─── AR Placed Cards (DOM-based) ───────────────────────────────────────────── */
 .ar-placed-card {
   position: absolute;

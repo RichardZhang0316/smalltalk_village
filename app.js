@@ -87,6 +87,81 @@ function speak(text, rate = 0.85) {
   speech.synth.speak(utt);
 }
 
+// ─── 3D Model Map ─────────────────────────────────────────────────────────────
+// Each entry: { glb: URL for 3D viewer, usdz: URL for iOS AR Quick Look }
+// GLB  = shown in model-viewer (works everywhere)
+// USDZ = used by iOS AR Quick Look (native ARKit placement)
+//
+// Free GLB sources:  https://poly.pizza  |  https://sketchfab.com/features/free-3d-models
+// GLB → USDZ:        Reality Converter (free Mac app from Apple)
+// Once you download models, put them in assets/models/ and update paths below.
+const MODEL_MAP = {
+  // --- Working demo models (publicly hosted) ---
+  bottle:   {
+    glb:  'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/WaterBottle/glTF-Binary/WaterBottle.glb',
+    usdz: 'https://developer.apple.com/augmented-reality/quick-look/models/teapot/teapot.usdz',
+  },
+  // --- Placeholders: replace with your own models ---
+  // Download from poly.pizza, put in assets/models/, update path
+  cup:      { glb: null, usdz: 'https://developer.apple.com/augmented-reality/quick-look/models/teapot/teapot.usdz' },
+  chair:    { glb: null, usdz: null },
+  desk:     { glb: null, usdz: null },
+  laptop:   { glb: null, usdz: null },
+  book:     { glb: null, usdz: null },
+  pen:      { glb: null, usdz: null },
+  phone:    { glb: null, usdz: null },
+  bag:      { glb: null, usdz: null },
+  keyboard: { glb: null, usdz: null },
+  backpack: { glb: null, usdz: null },
+  tv:       { glb: null, usdz: 'https://developer.apple.com/augmented-reality/quick-look/models/retrotv/retrotv.usdz' },
+  clock:    { glb: null, usdz: null },
+  scissors: { glb: null, usdz: null },
+  mouse:    { glb: null, usdz: null },
+};
+
+// ─── 3D Viewer ────────────────────────────────────────────────────────────────
+let viewerCurrentItem = null;
+
+function open3DViewer(item) {
+  viewerCurrentItem = item;
+  const vocab   = getVocab(item.key);
+  const models  = MODEL_MAP[item.key] || {};
+
+  $('mv-word').textContent     = item.label.toUpperCase();
+  $('mv-word').style.color     = vocab.color;
+  $('mv-phonetic').textContent = vocab.phonetic;
+  $('mv-example').textContent  = `"${vocab.example}"`;
+
+  const mv = document.getElementById('main-model-viewer');
+
+  if (models.glb) {
+    mv.setAttribute('src', models.glb);
+    $('mv-no-model-hint').classList.add('hidden');
+  } else {
+    mv.removeAttribute('src');
+    $('mv-no-model-hint').classList.remove('hidden');
+  }
+
+  if (models.usdz) {
+    mv.setAttribute('ios-src', models.usdz);
+    $('mv-ar-btn').classList.remove('hidden');
+  } else {
+    mv.removeAttribute('ios-src');
+    // On non-iOS or no USDZ, hide the AR button
+    $('mv-ar-btn').classList.add('hidden');
+  }
+
+  $('object-picker-panel').classList.add('hidden');
+  $('model-viewer-panel').classList.remove('hidden');
+}
+
+function close3DViewer() {
+  $('model-viewer-panel').classList.add('hidden');
+  viewerCurrentItem = null;
+  const mv = document.getElementById('main-model-viewer');
+  mv.removeAttribute('src');
+}
+
 // ─── AR Placement: Placeable Objects Catalogue ───────────────────────────────
 const PLACEABLE_OBJECTS = [
   { key: 'cup',      emoji: '☕', label: 'Cup' },
@@ -729,8 +804,7 @@ function buildObjectPicker() {
       <span class="picker-phonetic">${vocab.phonetic}</span>
     `;
     btn.addEventListener('click', () => {
-      $('object-picker-panel').classList.add('hidden');
-      enterPlacementMode(item);
+      open3DViewer(item);
     });
     grid.appendChild(btn);
   });
@@ -817,6 +891,19 @@ function setupEventListeners() {
   $('btn-place-ar').addEventListener('click', () => {
     buildObjectPicker();
     $('object-picker-panel').classList.remove('hidden');
+  });
+
+  // 3D viewer panel controls
+  $('btn-close-mv').addEventListener('click', close3DViewer);
+
+  $('mv-speak-btn').addEventListener('click', () => {
+    if (viewerCurrentItem) speak(viewerCurrentItem.label, 0.8);
+  });
+
+  $('mv-place-btn').addEventListener('click', () => {
+    if (!viewerCurrentItem) return;
+    close3DViewer();
+    enterPlacementMode(viewerCurrentItem);
   });
 
   // Close picker without selecting
