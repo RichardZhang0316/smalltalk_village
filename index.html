@@ -90,6 +90,45 @@
         <span class="btn-icon">✦</span>
         <span>Place AR</span>
       </button>
+      <button id="btn-quiz" class="btn-secondary btn-quiz hidden">
+        <span class="btn-icon">🧠</span>
+        <span>Quiz</span>
+      </button>
+    </div>
+
+    <!-- Toast notification -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Quiz Panel -->
+    <div id="quiz-panel" class="hidden">
+      <div class="quiz-header">
+        <span id="quiz-progress">1 / 5</span>
+        <h2>Vocabulary Quiz</h2>
+        <span id="quiz-score">Score: 0</span>
+      </div>
+
+      <!-- Question area -->
+      <div id="quiz-question-area">
+        <div id="quiz-emoji-box">
+          <span id="quiz-emoji">❓</span>
+        </div>
+        <p id="quiz-prompt">What is this called in English?</p>
+        <p id="quiz-phonetic-hint"></p>
+        <div id="quiz-choices"></div>
+        <div id="quiz-feedback" class="quiz-feedback hidden"></div>
+      </div>
+
+      <!-- Result area -->
+      <div id="quiz-result-area" class="hidden">
+        <div id="quiz-result-stars"></div>
+        <p id="quiz-result-score"></p>
+        <p id="quiz-result-pct"></p>
+        <p id="quiz-result-msg"></p>
+        <div class="quiz-result-actions">
+          <button id="btn-quiz-again" class="btn-primary">Try Again</button>
+          <button id="btn-quiz-close" class="btn-secondary">Done</button>
+        </div>
+      </div>
     </div>
 
     <!-- Placement mode hint bar -->

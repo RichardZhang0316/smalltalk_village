@@ -162,6 +162,200 @@ function close3DViewer() {
   mv.removeAttribute('src');
 }
 
+// ─── Web Audio Feedback ───────────────────────────────────────────────────────
+let _audioCtx = null;
+function getAudioCtx() {
+  if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return _audioCtx;
+}
+
+function playTone(freq, startTime, duration, vol = 0.22, type = 'sine') {
+  try {
+    const ctx  = getAudioCtx();
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = type; osc.frequency.value = freq;
+    gain.gain.setValueAtTime(vol, startTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+    osc.start(startTime); osc.stop(startTime + duration + 0.02);
+  } catch { /* audio not available */ }
+}
+
+function playCorrectSound() {
+  const t = getAudioCtx().currentTime;
+  playTone(523.25, t,       0.12); // C5
+  playTone(659.25, t + 0.1, 0.12); // E5
+  playTone(783.99, t + 0.2, 0.25); // G5
+}
+
+function playWrongSound() {
+  const t = getAudioCtx().currentTime;
+  playTone(311.13, t,        0.18, 0.2, 'square');
+  playTone(233.08, t + 0.15, 0.28, 0.2, 'square');
+}
+
+function playDiscoverSound() {
+  const t = getAudioCtx().currentTime;
+  [523, 587, 659, 784].forEach((f, i) => playTone(f, t + i * 0.07, 0.1, 0.18));
+}
+
+function playSuccessSound() {
+  const t = getAudioCtx().currentTime;
+  [523, 659, 784, 1047].forEach((f, i) => playTone(f, t + i * 0.1, 0.15));
+}
+
+// ─── Toast Notifications ─────────────────────────────────────────────────────
+let _toastTimer = null;
+function showToast(msg, duration = 2500, type = 'info') {
+  const toast = document.getElementById('toast');
+  if (!toast) return;
+  toast.textContent = msg;
+  toast.className = `toast show toast-${type}`;
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => toast.classList.remove('show'), duration);
+}
+
+// ─── Quiz System ──────────────────────────────────────────────────────────────
+const quizState = {
+  active: false,
+  questions: [],
+  currentQ: 0,
+  score: 0,
+  totalQ: 5,
+  answered: false,
+};
+
+function getQuizableWords() {
+  const seen = new Set(
+    [...state.learnedWords.keys()].map(k => k.toLowerCase())
+  );
+  return PLACEABLE_OBJECTS.filter(
+    item => seen.has(item.key) || seen.has(item.label.toLowerCase())
+  );
+}
+
+function updateQuizButton() {
+  const btn = document.getElementById('btn-quiz');
+  if (!btn) return;
+  const n = getQuizableWords().length;
+  if (n >= 3) {
+    btn.classList.remove('hidden');
+    btn.querySelector('span:last-child').textContent = `Quiz (${n})`;
+  }
+}
+
+function startQuiz() {
+  const quizable = getQuizableWords();
+  if (quizable.length < 3) {
+    showToast('Scan at least 3 objects first! 📷', 2200, 'warn');
+    return;
+  }
+  quizState.active   = true;
+  quizState.score    = 0;
+  quizState.currentQ = 0;
+  quizState.totalQ   = Math.min(5, quizable.length);
+
+  const shuffled = [...quizable].sort(() => Math.random() - 0.5);
+  quizState.questions = shuffled.slice(0, quizState.totalQ).map(item => {
+    const distractors = PLACEABLE_OBJECTS
+      .filter(p => p.key !== item.key)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 3);
+    return {
+      correct: item,
+      choices: [item, ...distractors].sort(() => Math.random() - 0.5),
+    };
+  });
+
+  document.getElementById('quiz-question-area').classList.remove('hidden');
+  document.getElementById('quiz-result-area').classList.add('hidden');
+  document.getElementById('quiz-feedback').classList.add('hidden');
+  document.getElementById('quiz-panel').classList.remove('hidden');
+  renderQuizQuestion();
+}
+
+function renderQuizQuestion() {
+  const q = quizState.questions[quizState.currentQ];
+  quizState.answered = false;
+
+  document.getElementById('quiz-progress').textContent =
+    `${quizState.currentQ + 1} / ${quizState.totalQ}`;
+  document.getElementById('quiz-score').textContent = `Score: ${quizState.score}`;
+  document.getElementById('quiz-emoji').textContent = q.correct.emoji;
+  document.getElementById('quiz-phonetic-hint').textContent =
+    getVocab(q.correct.key).phonetic;
+  document.getElementById('quiz-feedback').classList.add('hidden');
+
+  const grid = document.getElementById('quiz-choices');
+  grid.innerHTML = '';
+  q.choices.forEach(item => {
+    const btn = document.createElement('button');
+    btn.className = 'quiz-choice-btn';
+    btn.textContent = item.label.toUpperCase();
+    btn.dataset.key = item.key;
+    btn.addEventListener('click', () => handleQuizAnswer(item, btn));
+    grid.appendChild(btn);
+  });
+}
+
+function handleQuizAnswer(selected, btn) {
+  if (quizState.answered) return;
+  quizState.answered = true;
+
+  const q = quizState.questions[quizState.currentQ];
+  const isCorrect = selected.key === q.correct.key;
+
+  document.querySelectorAll('.quiz-choice-btn').forEach(b => {
+    if (b.dataset.key === q.correct.key) b.classList.add('quiz-correct');
+    else if (b === btn && !isCorrect)     b.classList.add('quiz-wrong');
+    b.disabled = true;
+  });
+
+  const fb = document.getElementById('quiz-feedback');
+  if (isCorrect) {
+    quizState.score++;
+    playCorrectSound();
+    speak(q.correct.label, 0.85);
+    fb.textContent = '✓ Correct!';
+    fb.className = 'quiz-feedback quiz-fb-correct';
+  } else {
+    playWrongSound();
+    speak(q.correct.label, 0.85);
+    fb.textContent = `✗  It's "${q.correct.label}"`;
+    fb.className = 'quiz-feedback quiz-fb-wrong';
+  }
+  fb.classList.remove('hidden');
+
+  setTimeout(() => {
+    quizState.currentQ++;
+    if (quizState.currentQ >= quizState.totalQ) showQuizResult();
+    else { fb.classList.add('hidden'); renderQuizQuestion(); }
+  }, 2000);
+}
+
+function showQuizResult() {
+  const pct   = Math.round(quizState.score / quizState.totalQ * 100);
+  const stars = pct >= 80 ? '🌟🌟🌟' : pct >= 60 ? '⭐⭐' : '⭐';
+  const msg   = pct >= 80 ? 'Excellent! Keep it up!'
+              : pct >= 60 ? 'Good job! Keep practicing.'
+              : 'Keep scanning and learning!';
+
+  document.getElementById('quiz-question-area').classList.add('hidden');
+  document.getElementById('quiz-result-area').classList.remove('hidden');
+  document.getElementById('quiz-result-stars').textContent  = stars;
+  document.getElementById('quiz-result-score').textContent  = `${quizState.score} / ${quizState.totalQ}`;
+  document.getElementById('quiz-result-pct').textContent    = `${pct}%`;
+  document.getElementById('quiz-result-msg').textContent    = msg;
+
+  if (pct >= 80) playSuccessSound();
+}
+
+function closeQuiz() {
+  document.getElementById('quiz-panel').classList.add('hidden');
+  quizState.active = false;
+}
+
 // ─── AR Placement: Placeable Objects Catalogue ───────────────────────────────
 const PLACEABLE_OBJECTS = [
   { key: 'cup',      emoji: '☕', label: 'Cup' },
@@ -823,8 +1017,18 @@ function hideLabelCard() {
 
 // ─── Word Tracking ───────────────────────────────────────────────────────────
 function trackWord(label) {
-  const count = (state.learnedWords.get(label) || 0) + 1;
+  const prev  = state.learnedWords.get(label) || 0;
+  const count = prev + 1;
   state.learnedWords.set(label, count);
+
+  if (prev === 0) {
+    // First time discovering this word
+    playDiscoverSound();
+    showToast(`✨ New word: ${label.toUpperCase()}`, 2200, 'discover');
+    updateQuizButton();
+  } else if (count === 5) {
+    showToast(`⭐ Mastered: ${label.toUpperCase()}!`, 2200, 'master');
+  }
 }
 
 function renderHistory() {
@@ -970,6 +1174,11 @@ function setupEventListeners() {
   });
 
   // ── AR Placement ──────────────────────────────────────────────────────────
+
+  // Quiz
+  $('btn-quiz').addEventListener('click', startQuiz);
+  $('btn-quiz-close').addEventListener('click', closeQuiz);
+  $('btn-quiz-again').addEventListener('click', startQuiz);
 
   // Open object picker panel
   $('btn-place-ar').addEventListener('click', () => {
