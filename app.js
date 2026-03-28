@@ -225,6 +225,9 @@ function screenToWorld(sx, sy) {
 function enterPlacementMode(item) {
   placementState.active = true;
   arThree.selectedItem  = item;
+  // Start ghost at screen center so it's visible immediately
+  placementState.ghostX = window.innerWidth  / 2;
+  placementState.ghostY = window.innerHeight / 2;
 
   // Create ghost sprite (semi-transparent preview)
   if (arThree.ghostSprite) {
@@ -800,41 +803,48 @@ function setupEventListeners() {
     clearAllPlaced();
   });
 
-  // Track ghost position (touch)
-  const threeCanvas = document.getElementById('ar-three-canvas');
-  threeCanvas.addEventListener('touchmove', e => {
-    e.preventDefault();
+  // All placement interactions are attached to ar-container (the full-screen parent).
+  // ar-three-canvas has pointer-events:none so we cannot use it directly.
+  // We filter out taps that originate inside interactive UI elements.
+  const arContainerEl = document.getElementById('ar-container');
+
+  const isInteractiveTarget = el =>
+    el.closest('#control-bar, #placement-hint, #placed-toolbar, #object-picker-panel, #history-panel, #label-card, #status-bar');
+
+  // Track ghost position on touch move
+  arContainerEl.addEventListener('touchmove', e => {
     if (!placementState.active) return;
     placementState.ghostX = e.touches[0].clientX;
     placementState.ghostY = e.touches[0].clientY;
-  }, { passive: false });
+  }, { passive: true });
 
-  // Track ghost position (mouse, for desktop testing)
-  threeCanvas.addEventListener('mousemove', e => {
+  // Track ghost position on mouse move (desktop testing)
+  arContainerEl.addEventListener('mousemove', e => {
     if (!placementState.active) return;
     placementState.ghostX = e.clientX;
     placementState.ghostY = e.clientY;
   });
 
-  // Tap / click to place object OR speak a placed object
-  threeCanvas.addEventListener('click', e => {
+  // Click (desktop) — place or speak
+  arContainerEl.addEventListener('click', e => {
+    if (isInteractiveTarget(e.target)) return;
     if (placementState.active) {
       placeObjectAt(e.clientX, e.clientY);
     } else {
-      // Check if tapped near a placed object
       handlePlacedObjectTap(e.clientX, e.clientY);
     }
   });
 
-  threeCanvas.addEventListener('touchend', e => {
-    e.preventDefault();
+  // Touch end (mobile) — place or speak
+  arContainerEl.addEventListener('touchend', e => {
+    if (isInteractiveTarget(e.target)) return;
     const t = e.changedTouches[0];
     if (placementState.active) {
       placeObjectAt(t.clientX, t.clientY);
     } else {
       handlePlacedObjectTap(t.clientX, t.clientY);
     }
-  }, { passive: false });
+  }, { passive: true });
 
   // Demo mode (COCO)
   const demoBtn = $('btn-demo-mode');
