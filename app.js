@@ -902,8 +902,9 @@ function setupEventListeners() {
 
   $('mv-place-btn').addEventListener('click', () => {
     if (!viewerCurrentItem) return;
+    const item = viewerCurrentItem; // save before close3DViewer nulls it
     close3DViewer();
-    enterPlacementMode(viewerCurrentItem);
+    enterPlacementMode(item);
   });
 
   // Close picker without selecting
