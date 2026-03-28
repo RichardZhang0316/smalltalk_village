@@ -248,10 +248,21 @@ function enterPlacementMode(item) {
     <span class="placed-emoji">${item.emoji}</span>
     <span class="placed-word" style="color:${vocab.color}">${item.label.toUpperCase()}</span>
     <span class="placed-phonetic">${vocab.phonetic}</span>
+    <button class="ghost-place-btn" id="ghost-place-btn">Tap to Place ✓</button>
   `;
   ghost.style.left = `${placementState.ghostX}px`;
   ghost.style.top  = `${placementState.ghostY}px`;
   ghost.classList.remove('hidden');
+
+  // Direct button on ghost: most reliable way to trigger placement
+  document.getElementById('ghost-place-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    const ghost2 = document.getElementById('ar-ghost-card');
+    const rect   = ghost2 ? ghost2.getBoundingClientRect() : null;
+    const sx = rect ? rect.left + rect.width  / 2 : placementState.ghostX;
+    const sy = rect ? rect.top  + rect.height / 2 : placementState.ghostY;
+    placeObjectAt(sx, sy);
+  });
 }
 
 /** Exit placement mode without placing */
@@ -434,13 +445,24 @@ async function loadCustomModel() {
 
 async function loadCocoModel() {
   setLoadingProgress(20, 'Loading COCO-SSD model (may take ~30s)…');
-  const script = document.createElement('script');
-  script.src = 'https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js';
-  document.head.appendChild(script);
-  await new Promise(resolve => script.onload = resolve);
-  // mobilenet_v2 balances speed and accuracy well on mobile
-  state.cocoModel = await cocoSsd.load({ base: 'mobilenet_v2' });
-  setLoadingProgress(60, 'COCO model loaded ✓');
+  try {
+    await new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js';
+      script.onload  = resolve;
+      script.onerror = () => reject(new Error('Failed to load COCO-SSD script'));
+      // 30s timeout
+      const timer = setTimeout(() => reject(new Error('COCO-SSD script timeout')), 30000);
+      script.onload = () => { clearTimeout(timer); resolve(); };
+      document.head.appendChild(script);
+    });
+    state.cocoModel = await cocoSsd.load({ base: 'lite_mobilenet_v2' }); // lite = faster download
+    setLoadingProgress(60, 'COCO model loaded ✓');
+  } catch (err) {
+    console.error('COCO-SSD load error:', err);
+    setLoadingProgress(60, '⚠️ Model load failed, AR scan disabled');
+    // Continue anyway — AR placement still works without the model
+  }
 }
 
 // ─── Camera ──────────────────────────────────────────────────────────────────
@@ -817,8 +839,9 @@ function setupEventListeners() {
   // We filter out taps that originate inside interactive UI elements.
   const arContainerEl = document.getElementById('ar-container');
 
+  // Only block placement when tapping actual UI controls (not the label card or video)
   const isInteractiveTarget = el =>
-    el.closest('#control-bar, #placement-hint, #placed-toolbar, #object-picker-panel, #history-panel, #label-card, #status-bar');
+    el.closest('#control-bar, #placed-toolbar, #object-picker-panel, #history-panel, #status-bar, .placed-remove');
 
   // Track ghost position on touch move
   arContainerEl.addEventListener('touchmove', e => {
