@@ -46,6 +46,47 @@ function getVocab(label) {
   };
 }
 
+// ─── Speech ──────────────────────────────────────────────────────────────────
+const speech = {
+  synth: window.speechSynthesis,
+  voice: null, // will be set after voices load
+};
+
+function initSpeech() {
+  const pickVoice = () => {
+    const voices = speech.synth.getVoices();
+    // Prefer en-US voices; Samantha is the default iOS voice
+    speech.voice =
+      voices.find(v => v.name === 'Samantha') ||
+      voices.find(v => v.lang === 'en-US' && v.localService) ||
+      voices.find(v => v.lang.startsWith('en-US')) ||
+      voices.find(v => v.lang.startsWith('en')) ||
+      voices[0] || null;
+  };
+  pickVoice();
+  // voices load asynchronously on some browsers
+  if (speech.synth.onvoiceschanged !== undefined) {
+    speech.synth.onvoiceschanged = pickVoice;
+  }
+}
+
+/**
+ * Speak text aloud.
+ * @param {string} text  - Text to speak
+ * @param {number} rate  - Speech rate (0.5 – 1.5). Default 0.85 (slightly slow for learners)
+ */
+function speak(text, rate = 0.85) {
+  if (!speech.synth) return;
+  speech.synth.cancel(); // stop any current speech
+  const utt = new SpeechSynthesisUtterance(text);
+  utt.voice  = speech.voice;
+  utt.lang   = 'en-US';
+  utt.rate   = rate;
+  utt.pitch  = 1.0;
+  utt.volume = 1.0;
+  speech.synth.speak(utt);
+}
+
 // ─── State ───────────────────────────────────────────────────────────────────
 const state = {
   model: null,
@@ -53,6 +94,7 @@ const state = {
   mode: 'custom',       // 'custom' | 'coco'
   isRunning: false,
   continuousMode: true,
+  autoSpeak: true,      // auto-pronounce when a new word is detected
   lastLabel: null,
   lastConfidence: 0,
   learnedWords: new Map(), // label → count
@@ -297,6 +339,11 @@ function displayLabel(label, confidence) {
   labelCard.classList.add('pop-in');
   setTimeout(() => labelCard.classList.remove('pop-in'), 400);
 
+  // Auto-pronounce the word when it first appears
+  if (state.autoSpeak) {
+    speak(label);
+  }
+
   // Track learned words
   trackWord(label);
 }
@@ -331,6 +378,7 @@ function renderHistory() {
         <span class="history-word">${label}</span>
         <span class="history-phonetic">${vocab.phonetic}</span>
       </div>
+      <button class="btn-speak-history" data-word="${label}" title="Pronounce">🔊</button>
       <span class="history-count">×${count}</span>
     `;
     historyList.appendChild(item);
@@ -361,6 +409,26 @@ function showNoModelScreen() {
 
 // ─── Event Listeners ─────────────────────────────────────────────────────────
 function setupEventListeners() {
+  // Speak the detected word
+  $('btn-speak-word').addEventListener('click', () => {
+    if (state.lastLabel) speak(state.lastLabel, 0.8);
+  });
+
+  // Read the example sentence (slightly slower for learning)
+  $('btn-speak-sentence').addEventListener('click', () => {
+    const sentence = $('example-sentence').textContent.replace(/^"|"$/g, '');
+    if (sentence) speak(sentence, 0.75);
+  });
+
+  // Toggle auto-speak
+  $('btn-auto-speak').addEventListener('click', () => {
+    state.autoSpeak = !state.autoSpeak;
+    const btn = $('btn-auto-speak');
+    btn.dataset.active = state.autoSpeak;
+    btn.classList.toggle('active', state.autoSpeak);
+    btn.querySelector('.btn-icon').textContent = state.autoSpeak ? '🔈' : '🔇';
+  });
+
   // Single scan button
   $('btn-scan').addEventListener('click', async () => {
     scanIndicator.classList.remove('hidden');
@@ -391,6 +459,12 @@ function setupEventListeners() {
     historyPanel.classList.add('hidden');
   });
 
+  // Pronounce words in history list (event delegation)
+  $('history-list').addEventListener('click', e => {
+    const btn = e.target.closest('.btn-speak-history');
+    if (btn) speak(btn.dataset.word);
+  });
+
   // Demo mode (COCO)
   const demoBtn = $('btn-demo-mode');
   if (demoBtn) {
@@ -419,4 +493,7 @@ function setupEventListeners() {
 }
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', init);
+window.addEventListener('DOMContentLoaded', () => {
+  initSpeech();
+  init();
+});

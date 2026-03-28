@@ -194,9 +194,15 @@ html, body {
 .label-text-block {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   flex: 1;
   min-width: 0;
+}
+
+.label-word-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 #detected-label {
@@ -207,21 +213,72 @@ html, body {
   transition: color 0.3s;
 }
 
+/* Speak word button (🔊) next to the word */
+.btn-speak {
+  background: rgba(255,255,255,0.12);
+  border: none;
+  border-radius: 50%;
+  width: 32px; height: 32px;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s, transform 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-speak:active { background: rgba(255,255,255,0.25); transform: scale(0.9); }
+
 #phonetic-label {
   font-size: 0.85rem;
   color: rgba(255,255,255,0.55);
   font-style: italic;
 }
 
+.example-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
 #example-sentence {
   font-size: 0.8rem;
   color: rgba(255,255,255,0.7);
   line-height: 1.4;
-  margin-top: 2px;
-  white-space: nowrap;
+  flex: 1;
   overflow: hidden;
-  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
+
+/* Small play button for sentence */
+.btn-speak-sm {
+  background: rgba(255,255,255,0.1);
+  border: none;
+  border-radius: 6px;
+  padding: 3px 7px;
+  font-size: 0.7rem;
+  color: rgba(255,255,255,0.7);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-speak-sm:active { background: rgba(255,255,255,0.25); }
+
+/* History speak button */
+.btn-speak-history {
+  background: transparent;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 4px;
+  opacity: 0.6;
+  transition: opacity 0.15s, transform 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-speak-history:active { opacity: 1; transform: scale(0.9); }
 
 /* ─── Control Bar ──────────────────────────────────────────────────────────── */
 #control-bar {

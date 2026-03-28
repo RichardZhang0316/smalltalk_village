@@ -49,9 +49,15 @@
           <span id="confidence-text">0%</span>
         </div>
         <div class="label-text-block">
-          <span id="detected-label">—</span>
+          <div class="label-word-row">
+            <span id="detected-label">—</span>
+            <button id="btn-speak-word" class="btn-speak" title="Pronounce word">🔊</button>
+          </div>
           <span id="phonetic-label"></span>
-          <span id="example-sentence"></span>
+          <div class="example-row">
+            <span id="example-sentence"></span>
+            <button id="btn-speak-sentence" class="btn-speak-sm" title="Read sentence">▶</button>
+          </div>
         </div>
       </div>
     </div>
@@ -69,6 +75,10 @@
       <button id="btn-history" class="btn-secondary">
         <span class="btn-icon">📚</span>
         <span>Learned</span>
+      </button>
+      <button id="btn-auto-speak" class="btn-secondary active" data-active="true" title="Auto pronounce new words">
+        <span class="btn-icon">🔈</span>
+        <span>Auto</span>
       </button>
     </div>
 
