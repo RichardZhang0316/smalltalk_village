@@ -352,6 +352,102 @@ function exitPlacementMode() {
   if (ghost) ghost.classList.add('hidden');
 }
 
+/**
+ * Add drag-to-reposition + tap-to-speak to a placed card.
+ * Touch/mouse delta < 8px → treat as tap (speak word).
+ * Touch/mouse delta ≥ 8px → treat as drag (reposition card).
+ */
+function makeDraggable(card, item) {
+  let startX = 0, startY = 0;
+  let startLeft = 0, startTop = 0;
+  let dragging = false;
+  let moved = false;
+
+  function onStart(cx, cy) {
+    startX    = cx;
+    startY    = cy;
+    startLeft = parseFloat(card.style.left) || 0;
+    startTop  = parseFloat(card.style.top)  || 0;
+    dragging  = true;
+    moved     = false;
+    card.classList.add('dragging');
+    // Pause float animation while dragging
+    card.style.animationPlayState = 'paused';
+  }
+
+  function onMove(cx, cy) {
+    if (!dragging) return;
+    const dx = cx - startX;
+    const dy = cy - startY;
+    if (Math.abs(dx) > 8 || Math.abs(dy) > 8) moved = true;
+    if (moved) {
+      card.style.left = `${startLeft + dx}px`;
+      card.style.top  = `${startTop  + dy}px`;
+    }
+  }
+
+  function onEnd(e) {
+    if (!dragging) return;
+    dragging = false;
+    card.classList.remove('dragging');
+    card.style.animationPlayState = '';
+
+    if (!moved) {
+      // Short tap — speak word (ignore remove-button, handled separately)
+      if (!e.target.closest('.placed-remove')) {
+        speak(item.label, 0.8);
+        card.classList.add('placed-pulse');
+        setTimeout(() => card.classList.remove('placed-pulse'), 400);
+      }
+    }
+  }
+
+  // ── Touch events ──
+  card.addEventListener('touchstart', e => {
+    if (e.target.closest('.placed-remove')) return;
+    e.stopPropagation(); // don't bubble to ar-container placement handler
+    onStart(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive: true });
+
+  card.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    e.stopPropagation();
+    onMove(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive: true });
+
+  card.addEventListener('touchend', e => {
+    if (!dragging) return;
+    e.stopPropagation();
+    onEnd(e);
+  }, { passive: true });
+
+  // ── Mouse events (desktop testing) ──
+  card.addEventListener('mousedown', e => {
+    if (e.target.closest('.placed-remove')) return;
+    e.stopPropagation();
+    onStart(e.clientX, e.clientY);
+
+    const onMouseMove = ev => onMove(ev.clientX, ev.clientY);
+    const onMouseUp   = ev => {
+      onEnd(ev);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup',   onMouseUp);
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup',   onMouseUp);
+  });
+
+  // Remove button
+  card.querySelector('.placed-remove').addEventListener('click', e => {
+    e.stopPropagation();
+    card.remove();
+    arThree.placed = arThree.placed.filter(o => o.card !== card);
+    if (arThree.placed.length === 0) {
+      document.getElementById('placed-toolbar').classList.add('hidden');
+    }
+  });
+}
+
 /** Place the selected object at screen position (sx, sy) */
 function placeObjectAt(sx, sy) {
   if (!placementState.active || !arThree.selectedItem) return;
@@ -365,26 +461,14 @@ function placeObjectAt(sx, sy) {
   card.style.left = `${sx}px`;
   card.style.top  = `${sy}px`;
   card.innerHTML = `
+    <div class="placed-drag-handle">⠿</div>
     <span class="placed-emoji">${item.emoji}</span>
     <span class="placed-word" style="color:${vocab.color}">${item.label.toUpperCase()}</span>
     <span class="placed-phonetic">${vocab.phonetic}</span>
     <button class="placed-remove" title="Remove">✕</button>
   `;
 
-  // Tap card body → speak word
-  card.addEventListener('click', e => {
-    if (e.target.closest('.placed-remove')) {
-      card.remove();
-      arThree.placed = arThree.placed.filter(o => o.card !== card);
-      if (arThree.placed.length === 0) {
-        document.getElementById('placed-toolbar').classList.add('hidden');
-      }
-      return;
-    }
-    speak(item.label, 0.8);
-    card.classList.add('placed-pulse');
-    setTimeout(() => card.classList.remove('placed-pulse'), 400);
-  });
+  makeDraggable(card, item);
 
   document.getElementById('ar-container').appendChild(card);
   arThree.placed.push({ card, item });

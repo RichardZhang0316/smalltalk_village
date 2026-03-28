@@ -427,6 +427,28 @@ html, body {
   100% { transform: translate(-50%, -50%) scale(1); }
 }
 
+/* Drag handle */
+.placed-drag-handle {
+  position: absolute;
+  top: 6px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.85rem;
+  color: rgba(255,255,255,0.25);
+  letter-spacing: 2px;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* While dragging */
+.ar-placed-card.dragging {
+  cursor: grabbing;
+  opacity: 0.85;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.7);
+  z-index: 20;
+  transition: none !important;
+}
+
 .placed-emoji    { font-size: 2.2rem; line-height: 1; }
 .placed-word     { font-size: 1rem; font-weight: 800; letter-spacing: 0.05em; }
 .placed-phonetic { font-size: 0.72rem; color: rgba(255,255,255,0.5); font-style: italic; }
