@@ -1101,22 +1101,6 @@ function buildObjectPicker() {
   });
 }
 
-/** Tap on a placed object → speak the word */
-function handlePlacedObjectTap(sx, sy) {
-  const { x, y } = screenToWorld(sx, sy);
-  const THRESHOLD = 80; // pixels in ortho space
-  for (const obj of arThree.placed) {
-    const dx = obj.sprite.position.x - x;
-    const dy = obj.sprite.position.y - y;
-    if (Math.sqrt(dx * dx + dy * dy) < THRESHOLD) {
-      speak(obj.item.label, 0.8);
-      // Brief pulse effect
-      obj.sprite.scale.set(165, 165, 1);
-      setTimeout(() => obj.sprite.scale.set(140, 140, 1), 300);
-      break;
-    }
-  }
-}
 
 // ─── Event Listeners ─────────────────────────────────────────────────────────
 function setupEventListeners() {
@@ -1242,24 +1226,20 @@ function setupEventListeners() {
     placementState.ghostY = e.clientY;
   });
 
-  // Click (desktop) — place or speak
+  // Click (desktop) — place only; tapping placed cards is handled by makeDraggable
   arContainerEl.addEventListener('click', e => {
     if (isInteractiveTarget(e.target)) return;
     if (placementState.active) {
       placeObjectAt(e.clientX, e.clientY);
-    } else {
-      handlePlacedObjectTap(e.clientX, e.clientY);
     }
   });
 
-  // Touch end (mobile) — place or speak
+  // Touch end (mobile) — place only; tapping placed cards is handled by makeDraggable
   arContainerEl.addEventListener('touchend', e => {
     if (isInteractiveTarget(e.target)) return;
     const t = e.changedTouches[0];
     if (placementState.active) {
       placeObjectAt(t.clientX, t.clientY);
-    } else {
-      handlePlacedObjectTap(t.clientX, t.clientY);
     }
   }, { passive: true });
 
