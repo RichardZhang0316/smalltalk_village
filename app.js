@@ -706,6 +706,7 @@ const state = {
   continuousMode: true,
   autoSpeak: true,      // auto-pronounce when a new word is detected
   lastLabel: null,
+  lastSpokenLabel: null,
   lastConfidence: 0,
   learnedWords: new Map(), // label → count
   frameCount: 0,
@@ -999,8 +1000,9 @@ function displayLabel(label, confidence) {
   labelCard.classList.add('pop-in');
   setTimeout(() => labelCard.classList.remove('pop-in'), 400);
 
-  // Auto-pronounce the word when it first appears
-  if (state.autoSpeak) {
+  // Auto-pronounce only when a new/different word appears
+  if (state.autoSpeak && label !== state.lastSpokenLabel) {
+    state.lastSpokenLabel = label;
     speak(label);
   }
 
@@ -1013,6 +1015,7 @@ function hideLabelCard() {
     labelCard.classList.add('hidden');
   }
   state.lastLabel = null;
+  state.lastSpokenLabel = null;
 }
 
 // ─── Word Tracking ───────────────────────────────────────────────────────────
@@ -1177,6 +1180,7 @@ function setupEventListeners() {
 
   // Quiz
   $('btn-quiz').addEventListener('click', startQuiz);
+  $('btn-quiz-exit').addEventListener('click', closeQuiz);
   $('btn-quiz-close').addEventListener('click', closeQuiz);
   $('btn-quiz-again').addEventListener('click', startQuiz);
 
