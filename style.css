@@ -649,11 +649,15 @@ html, body {
   bottom: env(safe-area-inset-bottom, 20px);
   left: 0; right: 0;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
   gap: 12px;
   padding: 0 20px 16px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+#control-bar::-webkit-scrollbar { display: none; }
 
 button {
   display: flex;
@@ -942,8 +946,21 @@ button:active { transform: scale(0.93); }
   padding: 18px 20px 14px;
   border-bottom: 1px solid rgba(255,255,255,0.08);
   flex-shrink: 0;
+  gap: 8px;
 }
-.quiz-header h2 { font-size: 1rem; font-weight: 700; }
+.quiz-header h2 { font-size: 1rem; font-weight: 700; flex: 1; text-align: center; }
+
+#btn-quiz-exit {
+  background: rgba(255,255,255,0.1);
+  border: none;
+  color: #fff;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
 #quiz-progress, #quiz-score {
   font-size: 0.8rem;
   color: rgba(255,255,255,0.5);
